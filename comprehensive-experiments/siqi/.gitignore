@@ -1,0 +1,4 @@
+# siqi 本地忽略（运行时产物）。logs/、__pycache__ 已在根 .gitignore 覆盖。
+reports/
+.env
+.pytest_cache/

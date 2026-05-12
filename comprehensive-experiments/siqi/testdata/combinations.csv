@@ -1,0 +1,26 @@
+id,keyword,expected_hit,note
+DC-01,dress,True,pairwise:dress/lower/clean/full
+DC-02,  SHIRT,True,pairwise:shirt/upper/leading/full
+DC-03,Top  ,True,pairwise:top/title/trailing/full
+DC-04,jE  ,True,pairwise:jeans/mixed/trailing/partial
+DC-05,  nOrEsUlT123,False,pairwise:noresult123/mixed/leading/full
+DC-06,Nores,False,pairwise:noresult123/title/clean/partial
+DC-07,JEANS,True,pairwise:jeans/upper/clean/full
+DC-08,  t,True,pairwise:top/lower/leading/partial
+DC-09,sh  ,True,pairwise:shirt/lower/trailing/partial
+DC-10,DR  ,True,pairwise:dress/upper/trailing/partial
+DC-11,  dR,True,pairwise:dress/mixed/leading/partial
+DC-12,sH,True,pairwise:shirt/mixed/clean/partial
+DC-13,t,True,pairwise:top/mixed/clean/partial
+DC-14,  Je,True,pairwise:jeans/title/leading/partial
+DC-15,nores  ,False,pairwise:noresult123/lower/trailing/partial
+DC-16,NORES  ,False,pairwise:noresult123/upper/trailing/partial
+DC-17,je  ,True,pairwise:jeans/lower/trailing/partial
+DC-18,T  ,True,pairwise:top/upper/trailing/partial
+DC-19,Sh  ,True,pairwise:shirt/title/trailing/partial
+DC-20,Dr  ,True,pairwise:dress/title/trailing/partial
+DC-21,,False,边界:空字符串
+DC-22,12345,False,边界:纯数字
+DC-23,!@#$%,False,边界:纯符号
+DC-24,<script>x</script>,False,边界:HTML 标签注入
+DC-25,aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,False,边界:超长字符串

@@ -1,0 +1,9 @@
+# 搜索测试用关键词集
+hit:
+  - dress
+  - shirt
+  - jeans
+miss:
+  - asdfghqwer123
+edge:
+  - " "
