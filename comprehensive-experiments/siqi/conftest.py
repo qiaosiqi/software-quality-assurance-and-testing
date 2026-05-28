@@ -12,6 +12,29 @@ import config
 SCREENSHOT_DIR = Path(__file__).parent / "reports" / "screenshots"
 
 
+def pytest_addoption(parser):
+    # 注意：option name 不能用 "keyword"，否则 dest 与 pytest 内置 -k 冲突，
+    # 导致 --keyword=xxx 被当成 -k 过滤表达式，所有用例被 deselect。
+    parser.addoption(
+        "--keyword", default="dress", dest="siqi_keyword",
+        help="搜索关键词（单元搜索 / 集成深度3、5 使用）",
+    )
+    parser.addoption(
+        "--product-index", type=int, default=0, dest="siqi_product_index",
+        help="列表 / 搜索结果中的商品序号（从 0 开始）",
+    )
+
+
+@pytest.fixture
+def keyword(request) -> str:
+    return request.config.getoption("siqi_keyword")
+
+
+@pytest.fixture
+def product_index(request) -> int:
+    return request.config.getoption("siqi_product_index")
+
+
 @pytest.fixture(scope="session")
 def browser():
     with sync_playwright() as p:
