@@ -268,6 +268,31 @@ credentials.json
 .github/copilot/
 
 # =========================================================
+# Java / Maven (zhiyi)
+# =========================================================
+target/
+.mvn/wrapper/maven-wrapper.jar
+# 本地下载的 Maven 二进制（zhiyi adapter 用，不入库）
+.maven/
+*.class
+
+# =========================================================
+# 综合实验：测试运行产物 / 本地二进制驱动 / 临时文件
+# =========================================================
+# 各成员的 HTML / Locust 报告（每次运行重新生成）
+comprehensive-experiments/*/reports/
+# 本地浏览器驱动（成员各自下载，不入库）
+comprehensive-experiments/xupeng/edgedriver_win64/
+comprehensive-experiments/yusheng/LICENSE.chromedriver
+comprehensive-experiments/yusheng/THIRD_PARTY_NOTICES.chromedriver
+# 历史记录（运行时持久化，不入库）
+comprehensive-experiments/UI/data/
+# UI venv
+comprehensive-experiments/UI/.venv/
+# xupeng 临时上传测试文件
+comprehensive-experiments/xupeng/test.txt
+
+# =========================================================
 # Misc
 # =========================================================
 *.sqlite3
