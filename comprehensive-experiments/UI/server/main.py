@@ -12,9 +12,12 @@ from __future__ import annotations
 
 import sys
 import threading
+import time
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+import requests
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -72,6 +75,49 @@ def health() -> dict:
         "version": "0.1.0",
         "uvicorn_python": sys.executable,
         "siqi_subprocess_python": _siqi_mod.PYTHON,
+    }
+
+
+@app.get("/api/monitor")
+def api_monitor() -> dict:
+    """首页监控小窗：探测 SUT 连通性 + 列出 adapter 可用性 + 自身存活。
+
+    SUT 探测放在服务端做（不在浏览器里）是为了：
+    1) 绕开 CORS —— automationexercise.com 不一定带跨域头；
+    2) 给到真实的 server→server RTT，比浏览器 fetch 的数字更接近测试运行时的链路质量。
+
+    handler 用同步 def，FastAPI 会把它放到 threadpool 跑，3s 超时不会阻塞事件循环。
+    """
+    sut: dict = {"ok": False, "latency_ms": None, "status_code": None, "error": None}
+    try:
+        t0 = time.perf_counter()
+        r = requests.head(
+            "https://automationexercise.com/",
+            timeout=3,
+            allow_redirects=True,
+            headers={"User-Agent": "sqa-ui-monitor/1.0"},
+        )
+        sut["latency_ms"] = int((time.perf_counter() - t0) * 1000)
+        sut["status_code"] = r.status_code
+        sut["ok"] = 200 <= r.status_code < 400
+    except requests.RequestException as e:
+        sut["error"] = type(e).__name__
+
+    adapters = {
+        owner_id: {
+            "available": adapter.available,
+            "display": OWNER_DISPLAY[owner_id],
+        }
+        for owner_id, adapter in ADAPTERS.items()
+    }
+
+    return {
+        "ok": True,
+        "timestamp": datetime.now().isoformat(timespec="seconds"),
+        "sut": sut,
+        "backend": {"ok": True, "version": "0.1.0"},
+        "adapters": adapters,
+        "running": _RUN_LOCK.locked(),
     }
 
 

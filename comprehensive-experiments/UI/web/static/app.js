@@ -16,8 +16,10 @@ const $app = document.getElementById('app');
 
 let META = null;          // /api/meta 缓存
 let INT_CATALOG = null;   // /api/integration/catalog 缓存
+let MONITOR_TIMER = null; // 首页系统状态卡的轮询 timer；路由切走时必须清掉
 
 const OWNER_ORDER = ['siqi', 'zhiyi', 'yusheng', 'xupeng'];
+const MONITOR_INTERVAL_MS = 15_000;
 
 // ============================================================
 // 工具
@@ -69,6 +71,8 @@ function parseHash() {
 }
 
 async function route() {
+  // 离开当前页时清掉首页监控 timer，避免后台空转拉 /api/monitor
+  if (MONITOR_TIMER) { clearInterval(MONITOR_TIMER); MONITOR_TIMER = null; }
   const path = parseHash();
   try {
     if (path === '/' || path === '') return renderEntry();
@@ -112,6 +116,38 @@ async function renderEntry() {
         <h1>软件质量保证与测试 · 综合实验</h1>
         <p class="subtitle">被测站点：automationexercise.com</p>
         <img class="team-logo" src="/static/team_logo.svg" alt="team logo" width="90" height="90">
+      </div>
+
+      <div class="monitor-card" id="monitor-card">
+        <div class="monitor-header">
+          <span class="monitor-title">系统状态</span>
+          <span class="monitor-meta">
+            <span id="monitor-updated">检测中…</span>
+            <button class="monitor-refresh" id="monitor-refresh" type="button" title="立即刷新">↻</button>
+          </span>
+        </div>
+        <div class="monitor-grid">
+          <div class="monitor-item">
+            <span class="dot unknown" id="mon-sut-dot"></span>
+            <div class="monitor-item-body">
+              <div class="monitor-item-label">被测站点 · automationexercise.com</div>
+              <div class="monitor-item-value" id="mon-sut-value">检测中…</div>
+            </div>
+          </div>
+          <div class="monitor-item">
+            <span class="dot unknown" id="mon-backend-dot"></span>
+            <div class="monitor-item-body">
+              <div class="monitor-item-label">本地后端 · FastAPI</div>
+              <div class="monitor-item-value" id="mon-backend-value">检测中…</div>
+            </div>
+          </div>
+          <div class="monitor-item">
+            <div class="monitor-item-body">
+              <div class="monitor-item-label">成员 adapter 可用性</div>
+              <div class="monitor-adapters" id="mon-adapters">—</div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="entry-team">
@@ -158,6 +194,94 @@ async function renderEntry() {
     }
     location.hash = go;
   }));
+
+  // 监控小窗：首屏立刻拉一次，之后每 15s 轮询；手动按钮也走同一个 fetch
+  $('#monitor-refresh').addEventListener('click', () => fetchAndRenderMonitor(true));
+  fetchAndRenderMonitor(false);
+  MONITOR_TIMER = setInterval(() => fetchAndRenderMonitor(false), MONITOR_INTERVAL_MS);
+}
+
+// ============================================================
+// 首页·系统状态监控
+// ============================================================
+
+async function fetchAndRenderMonitor(spin) {
+  // 路由已切走（DOM 没了）就别白拉
+  if (!document.getElementById('monitor-card')) {
+    if (MONITOR_TIMER) { clearInterval(MONITOR_TIMER); MONITOR_TIMER = null; }
+    return;
+  }
+  const $btn = $('#monitor-refresh');
+  if (spin && $btn) { $btn.classList.add('spin'); setTimeout(() => $btn.classList.remove('spin'), 500); }
+  try {
+    const data = await apiGet('/api/monitor');
+    renderMonitor(data);
+  } catch (e) {
+    // 拉不到 monitor 通常意味着后端挂了，把所有点置 fail
+    renderMonitor({
+      sut: { ok: false, error: 'unreachable' },
+      backend: { ok: false },
+      adapters: {},
+      timestamp: null,
+    });
+    const $upd = $('#monitor-updated');
+    if ($upd) $upd.textContent = '后端不可达';
+  }
+}
+
+function renderMonitor(data) {
+  // SUT
+  const sut = data.sut || {};
+  const $sd = $('#mon-sut-dot');
+  const $sv = $('#mon-sut-value');
+  if ($sd && $sv) {
+    if (sut.ok) {
+      const lat = sut.latency_ms;
+      const cls = lat == null ? 'ok' : (lat < 800 ? 'ok' : 'warn');
+      $sd.className = `dot ${cls}`;
+      $sv.textContent = `在线 · ${lat != null ? lat + ' ms' : '—'} · HTTP ${sut.status_code ?? '—'}`;
+    } else {
+      $sd.className = 'dot fail';
+      $sv.textContent = sut.error ? `离线 · ${sut.error}` : '离线';
+    }
+  }
+
+  // 后端
+  const be = data.backend || {};
+  const $bd = $('#mon-backend-dot');
+  const $bv = $('#mon-backend-value');
+  if ($bd && $bv) {
+    if (be.ok) {
+      $bd.className = 'dot ok';
+      $bv.textContent = data.running ? '存活 · 有测试运行中' : '存活 · 空闲';
+    } else {
+      $bd.className = 'dot fail';
+      $bv.textContent = '不可达';
+    }
+  }
+
+  // 4 成员 adapter
+  const $ad = $('#mon-adapters');
+  if ($ad) {
+    const a = data.adapters || {};
+    $ad.innerHTML = OWNER_ORDER.map(id => {
+      const info = a[id];
+      const ok = info && info.available;
+      const label = (info && info.display) || (META && META.owners.find(o => o.id === id)?.display) || id;
+      return `<span class="monitor-adapter"><span class="dot dot-sm ${ok ? 'ok' : 'fail'}"></span>${esc(label)}</span>`;
+    }).join('');
+  }
+
+  // 更新时间
+  const $upd = $('#monitor-updated');
+  if ($upd) {
+    if (data.timestamp) {
+      try { $upd.textContent = `更新于 ${new Date(data.timestamp).toLocaleTimeString('zh-CN', { hour12: false })}`; }
+      catch { $upd.textContent = data.timestamp; }
+    } else {
+      $upd.textContent = '—';
+    }
+  }
 }
 
 // ============================================================
