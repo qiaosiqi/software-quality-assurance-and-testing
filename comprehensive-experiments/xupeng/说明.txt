@@ -1,0 +1,71 @@
+==================================================
+1.test1.py — 核心功能模块测试（联系表单 / 分类筛选 / 订阅）
+==================================================
+test_10_contact_us_form ()
+功能：联系我们表单提交
+输入：name:str, email:str, subject:str, message:str, file:str
+输出：assert 断言结果
+test_11_category_filter_women ()
+功能：Women 分类筛选
+输入：无
+输出：页面跳转 + 商品加载状态
+test_11_category_filter_men ()
+功能：Men 分类筛选
+输入：无
+输出：页面跳转 + 商品加载状态
+test_12_subscription_newsletter ()
+功能：邮箱订阅
+输入：email:str
+输出：订阅成功提示信息
+close_ads ()
+功能：关闭页面广告
+输入：无
+输出：无
+==================================================
+2. test_module.py — 集成模块测试
+==================================================
+路径一：多商品购物车（深度 5）
+流程：首页 → Women/Dress → 加购 1 → Men/Tshirt → 加购 2 → 验证购物车有 2 件
+test_integration_1_multi_items_cart ()
+输入：无
+输出：cart_items:int
+路径二：搜索订阅（深度 6）
+流程：首页 → Products → 搜索 "Summer" → 加购 → 订阅 → 验证成功
+test_integration_2_search_filter_subscribe ()
+输入：无
+输出：success_flag:bool
+路径三：品牌筛选删除（深度 5）
+流程：首页 → 品牌筛选 → 加购 → 购物车 → 删除 → 验证清空
+test_integration_3_brand_filter_cart_delete ()
+输入：无
+输出：delete_success:bool
+==================================================
+3. load_test.py — 性能测试
+==================================================
+view_homepage ()
+功能：首页压测
+输入：无
+输出：响应时间:float, 成功率:float
+login ()
+功能：登录接口压测
+输入：username:str, password:str
+输出：响应状态码:int
+search_product ()
+功能：搜索接口压测
+输入：q:str
+输出：响应时间:float, 结果有效性:bool
+==================================================
+4. data_test.py — 数据组合测试（搜索栏）
+==================================================
+search_product (keyword)
+功能：执行商品搜索
+输入：keyword:str
+输出：bool
+get_searched_product_count ()
+功能：获取搜索结果商品数
+输入：无
+输出：int
+safe_click (element)
+功能：安全点击页面元素
+输入：element:WebElement
+输出：bool
