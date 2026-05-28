@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="500" viewBox="0 0 1024 500">
+  <defs>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#e5e7eb" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="1024" height="500" fill="#f9fafb"/>
+  <rect width="1024" height="500" fill="url(#grid)"/>
+  <text x="512" y="220" text-anchor="middle" fill="#6b7280" font-family="system-ui, sans-serif" font-size="36" font-weight="600">业务流程图待补充</text>
+  <text x="512" y="260" text-anchor="middle" fill="#9ca3af" font-family="system-ui, sans-serif" font-size="16">替换 UI/web/static/flowchart.png 即可生效</text>
+  <text x="512" y="290" text-anchor="middle" fill="#9ca3af" font-family="system-ui, sans-serif" font-size="14">（无 png 时自动 fallback 到本占位图）</text>
+</svg>

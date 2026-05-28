@@ -1,0 +1,16 @@
+# Web 后端
+fastapi>=0.110
+uvicorn[standard]>=0.27
+
+# 复用 siqi 的运行时依赖（adapter 调用 siqi_interface 时需要）
+playwright>=1.40
+pytest>=8.0,<9.0   # pytest 9.x 会无理由 deselect siqi 的测试，pin 在 8 系列
+pytest-playwright>=0.4
+pytest-html>=4.1
+allpairspy>=2.5
+locust>=2.20
+requests>=2.31
+
+# xupeng 的运行时依赖（adapter 调用 xupeng_interface 时需要）
+# selenium 4.6+ 自带 Selenium Manager，可自动下载 msedgedriver
+selenium>=4.15
