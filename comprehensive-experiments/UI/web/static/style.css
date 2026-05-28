@@ -541,4 +541,221 @@ a:hover { text-decoration: underline; }
   animation: spin 0.7s linear infinite;
   vertical-align: middle;
 }
+/* spinner 放在白底卡片里时，原本 inline 用三句 style 覆盖颜色（其中 border-top-color 还重复写了两次），
+   抽成 modifier class 后 showRunning() 里直接 .spinner.spinner-on-light，更干净。 */
+.spinner-on-light {
+  border-color: rgba(46, 49, 146, 0.2);
+  border-top-color: var(--color-primary);
+}
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ============ 免责声明 modal（P0：进入实时测试时弹一次） ============ */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 20px;
+  animation: fade-in 0.15s ease-out;
+}
+.modal-card {
+  background: white;
+  border-radius: var(--radius);
+  max-width: 560px;
+  width: 100%;
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  animation: slide-up 0.22s ease-out;
+}
+.modal-header {
+  padding: 20px 28px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--color-border);
+}
+.modal-header h3 {
+  margin: 0;
+  color: var(--color-primary);
+  font-size: 18px;
+}
+.modal-body { padding: 20px 28px; color: var(--color-text); }
+.modal-body ul { margin: 0; padding-left: 22px; line-height: 1.85; }
+.modal-body ul li { margin-bottom: 4px; }
+.modal-footer {
+  padding: 16px 28px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.modal-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-muted);
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+}
+.modal-checkbox input { margin: 0; cursor: pointer; }
+
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slide-up {
+  from { transform: translateY(16px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+@keyframes slide-in-right {
+  from { transform: translateX(120%); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+@keyframes toast-out {
+  to { transform: translateX(120%); opacity: 0; }
+}
+
+/* ============ 全局 toast（P1：测试结束/错误右上角浮） ============ */
+.toast-container {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+  max-width: calc(100vw - 32px);
+}
+.toast {
+  background: white;
+  border-left: 4px solid var(--color-muted);
+  padding: 12px 16px;
+  border-radius: 8px;
+  box-shadow: var(--shadow-md);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 260px;
+  max-width: 380px;
+  pointer-events: auto;
+  animation: slide-in-right 0.25s ease-out;
+  font-size: 14px;
+}
+.toast.leaving { animation: toast-out 0.2s ease-in forwards; }
+.toast.ok   { border-left-color: var(--color-success); }
+.toast.fail { border-left-color: var(--color-accent); }
+.toast.info { border-left-color: var(--color-primary); }
+.toast-icon { font-size: 16px; line-height: 1; }
+.toast-msg { flex: 1; line-height: 1.4; word-break: break-word; }
+.toast-close {
+  background: none;
+  border: none;
+  color: var(--color-muted);
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+  padding: 0 2px;
+}
+.toast-close:hover { color: var(--color-text); }
+
+/* ============ 运行中实时计时（P2） ============ */
+.run-timer {
+  display: inline-block;
+  margin-left: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+.btn:disabled { cursor: wait; }
+
+/* ============ topbar 快捷键提示 + 阴影（P3 + P7） ============ */
+.topbar {
+  border-bottom: none;
+  box-shadow: 0 1px 0 var(--color-border), 0 2px 6px rgba(0, 0, 0, 0.03);
+}
+.topbar-hint {
+  margin-left: auto;
+  color: var(--color-muted);
+  font-size: 12px;
+  letter-spacing: 0.3px;
+}
+.topbar-hint kbd {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text);
+  margin: 0 2px;
+}
+
+/* ============ 日志一键复制（P4） ============ */
+.log-wrap { position: relative; }
+.log-copy-btn {
+  position: absolute;
+  top: 16px;
+  right: 14px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #d1d5db;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  padding: 4px 10px;
+  border-radius: 5px;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, color 0.15s;
+}
+.log-copy-btn:hover { background: rgba(255, 255, 255, 0.18); color: white; }
+.log-copy-btn.copied {
+  background: rgba(16, 185, 129, 0.25);
+  color: #6ee7b7;
+  border-color: rgba(16, 185, 129, 0.5);
+}
+
+/* ============ 入口卡片增强（P5） ============ */
+.entry-card img {
+  transition: transform 0.25s ease;
+}
+.entry-card:hover img { transform: scale(1.08) rotate(-3deg); }
+.entry-card-meta {
+  display: inline-block;
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--color-primary);
+  background: rgba(46, 49, 146, 0.07);
+  padding: 2px 10px;
+  border-radius: 10px;
+  letter-spacing: 0.4px;
+}
+
+/* ============ 集成命中态视觉强化（P6） ============ */
+.integration-match {
+  border-left: 4px solid transparent;
+  padding-left: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.integration-match.hit {
+  background: rgba(16, 185, 129, 0.1);
+  color: #065f46;
+  border-left-color: var(--color-success);
+  font-weight: 500;
+}
+.integration-match.miss {
+  background: rgba(107, 114, 128, 0.08);
+  color: var(--color-muted);
+  border-left-color: rgba(107, 114, 128, 0.4);
+}
+
+/* ============ 模块卡片 pill 缩小（P7） ============ */
+.module-card-owner .status-pill {
+  font-size: 10px;
+  padding: 1px 6px;
+  letter-spacing: 0.3px;
+}

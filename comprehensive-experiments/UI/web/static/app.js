@@ -54,6 +54,7 @@ function topbar(title) {
     <div class="topbar">
       <a class="topbar-back" href="#/">← 返回入口</a>
       <div class="topbar-title">${esc(title)}</div>
+      <div class="topbar-hint">按 <kbd>Esc</kbd> 返回 · 表单内 <kbd>⏎</kbd> 启动</div>
     </div>
   `;
 }
@@ -128,25 +129,35 @@ async function renderEntry() {
           <img src="/static/icon_history.svg" alt="history">
           <h3>历史记录</h3>
           <p>按时间回看所有执行结果</p>
+          <div class="entry-card-meta">累计 ${stats.total} 次</div>
         </div>
         <div class="entry-card" data-go="#/live/unit">
           <img src="/static/icon_live.svg" alt="live">
           <h3>实时测试</h3>
           <p>在线启动单元 / 集成 / 数据 / 性能测试</p>
+          <div class="entry-card-meta">12 模块 · 4 类测试</div>
         </div>
         <div class="entry-card" data-go="#/flowchart">
           <img src="/static/icon_flowchart.svg" alt="flowchart">
           <h3>业务流程图</h3>
           <p>站点全局业务流程</p>
+          <div class="entry-card-meta">SVG 总览</div>
         </div>
       </div>
 
       <div class="entry-footer">
-        技术栈：FastAPI + Playwright + Locust + pytest　·　累计执行 ${stats.total} 次
+        技术栈：FastAPI · Playwright · Locust · pytest · TestNG
       </div>
     </div>
   `;
-  $$('.entry-card').forEach(c => c.addEventListener('click', () => { location.hash = c.dataset.go; }));
+  $$('.entry-card').forEach(c => c.addEventListener('click', async () => {
+    const go = c.dataset.go;
+    // 实时测试入口要先看免责声明（其它两张卡片直接跳转）
+    if (go.startsWith('#/live') && needsDisclaimer()) {
+      await showDisclaimerModal();
+    }
+    location.hash = go;
+  }));
 }
 
 // ============================================================
@@ -178,6 +189,8 @@ function renderLiveShell(activeSub, innerHtml) {
 }
 
 async function renderLive(sub) {
+  // 免责声明只在从入口卡片首次进入时弹（见 renderEntry 的 click handler）；
+  // 子页面之间切 tab、地址栏直达、刷新都不再触发，避免噪音
   if (sub === 'unit')         { renderLiveShell('unit', '<div class="loading">…</div>');         return renderUnitView(); }
   if (sub === 'integration')  { renderLiveShell('integration', '<div class="loading">…</div>');  return renderIntegrationView(); }
   if (sub === 'data')         { renderLiveShell('data', '<div class="loading">…</div>');         return renderDataView(); }
@@ -690,7 +703,10 @@ async function loadHistory() {
             ${e.report_url ? `<div style="margin-bottom: 8px;"><a href="${esc(e.report_url)}" target="_blank">📄 打开 HTML 报告</a></div>` : ''}
             <details>
               <summary style="cursor:pointer; color: var(--color-primary);">查看日志（${e.raw_output.length} 字符）</summary>
-              <div class="log-box">${esc(e.raw_output)}</div>
+              <div class="log-wrap">
+                <button class="log-copy-btn" type="button">复制</button>
+                <div class="log-box">${esc(e.raw_output)}</div>
+              </div>
             </details>
           </div>
         </td>
@@ -749,9 +765,22 @@ function showRunning(btn, resultSel, hint) {
   btn.innerHTML = '<span class="spinner"></span> 运行中…';
   $(resultSel).innerHTML = `
     <div class="result-card card run">
-      <div><span class="spinner" style="border-top-color: var(--color-primary); border-color: rgba(46,49,146,0.2); border-top-color: var(--color-primary);"></span> ${esc(hint)}</div>
+      <div>
+        <span class="spinner spinner-on-light"></span>
+        ${esc(hint)}
+        <span class="run-timer" id="run-timer">已用 0:00</span>
+      </div>
     </div>
   `;
+  // 实时秒数滚动。result-card 一旦被 renderResultCard / renderErrorCard 替换，#run-timer 就找不到了，
+  // setInterval 自动 self-clear，不需要在每个 handler 的 finally 里手动 clear。
+  const start = Date.now();
+  const tick = setInterval(() => {
+    const el = $('#run-timer');
+    if (!el) { clearInterval(tick); return; }
+    const s = Math.floor((Date.now() - start) / 1000);
+    el.textContent = `已用 ${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+  }, 1000);
 }
 
 function renderResultCard(sel, entry, opts = {}) {
@@ -790,12 +819,17 @@ function renderResultCard(sel, entry, opts = {}) {
       ${entry.report_url ? `<div style="margin-top: 10px;"><a href="${esc(entry.report_url)}" target="_blank">📄 打开 HTML 报告</a></div>` : ''}
       <details style="margin-top: 10px;">
         <summary style="cursor: pointer; color: var(--color-primary);">查看完整日志</summary>
-        <div class="log-box">${esc(entry.raw_output)}</div>
+        <div class="log-wrap">
+          <button class="log-copy-btn" type="button">复制</button>
+          <div class="log-box">${esc(entry.raw_output)}</div>
+        </div>
       </details>
     </div>
   `;
   // 自动滚到结果卡片，避免用户在长页面里没注意到（性能/集成跑完时尤其重要）
   try { $target.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch {}
+  // 右上角 toast 补一条，结果卡片如果滚走了也不会错过
+  toast(`${entry.case_name} ${entry.success ? '通过' : '失败'}`, entry.success ? 'ok' : 'fail');
 }
 
 function metric(label, value) {
@@ -809,6 +843,7 @@ function renderErrorCard(sel, msg) {
       <span style="margin-left: 8px;">${esc(msg)}</span>
     </div>
   `;
+  toast(`运行失败：${msg}`, 'fail', 5000);
 }
 
 function renderNotFound(path) {
@@ -816,4 +851,163 @@ function renderNotFound(path) {
     ${topbar('找不到页面')}
     <div class="page"><div class="card">未知路由：<code>${esc(path)}</code></div></div>
   `;
+}
+
+// ============================================================
+// 免责声明 modal（首次进入实时测试时弹出）
+// ============================================================
+
+const DISCLAIMER_KEY = 'agreed_disclaimer_v1';
+
+function needsDisclaimer() {
+  try { return !localStorage.getItem(DISCLAIMER_KEY); }
+  catch { return false; }   // 隐私模式 localStorage 不可用时直接放行，不阻塞
+}
+
+function showDisclaimerModal() {
+  // hashchange 在 modal 已存在时可能重入；直接返回已有 promise 由原始那次解决
+  if (document.getElementById('disclaimer-modal')) return Promise.resolve();
+  return new Promise(resolve => {
+    const $modal = h(`
+      <div class="modal-backdrop" id="disclaimer-modal" role="dialog" aria-labelledby="disclaimer-title" aria-modal="true">
+        <div class="modal-card">
+          <div class="modal-header">
+            <h3 id="disclaimer-title">⚠️ 使用须知</h3>
+          </div>
+          <div class="modal-body">
+            <ul>
+              <li>被测站点：<strong>automationexercise.com</strong>（公开自动化测试 demo 站）</li>
+              <li>测试运行期间会<strong>自动打开浏览器</strong>并访问被测站点</li>
+              <li>性能测试会以高并发向被测站点发起请求，请勿在生产环境运行</li>
+              <li>本工具仅用于《软件质量保证与测试》课程教学与演示</li>
+              <li>测试一旦启动<strong>无法中途终止</strong>，请确认参数后再运行</li>
+            </ul>
+          </div>
+          <div class="modal-footer">
+            <label class="modal-checkbox"><input type="checkbox" id="disclaimer-remember"> 不再显示此提示</label>
+            <button class="btn" id="disclaimer-confirm" type="button">我已知悉，继续</button>
+          </div>
+        </div>
+      </div>
+    `);
+    document.body.appendChild($modal);
+
+    const close = () => {
+      const cb = $('#disclaimer-remember');
+      if (cb && cb.checked) {
+        try { localStorage.setItem(DISCLAIMER_KEY, '1'); } catch {}
+      }
+      $modal.remove();
+      document.removeEventListener('keydown', onKey, true);
+      resolve();
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') { e.stopPropagation(); close(); }
+      else if (e.key === 'Enter') { e.stopPropagation(); close(); }
+    };
+    $('#disclaimer-confirm').addEventListener('click', close);
+    // 点 backdrop（modal 外区域）也关
+    $modal.addEventListener('click', (e) => { if (e.target === $modal) close(); });
+    // capture 阶段挂，免得被全局 ESC handler 抢走
+    document.addEventListener('keydown', onKey, true);
+    setTimeout(() => $('#disclaimer-confirm').focus(), 0);
+  });
+}
+
+// ============================================================
+// 全局 toast（右上角 3s 自动消失，可手动关）
+// ============================================================
+
+function ensureToastContainer() {
+  let c = document.getElementById('toast-container');
+  if (!c) {
+    c = h('<div class="toast-container" id="toast-container" aria-live="polite"></div>');
+    document.body.appendChild(c);
+  }
+  return c;
+}
+
+function toast(msg, type = 'info', timeout = 3000) {
+  const c = ensureToastContainer();
+  const icon = type === 'ok' ? '✅' : type === 'fail' ? '❌' : 'ℹ️';
+  const t = h(`
+    <div class="toast ${type}" role="status">
+      <span class="toast-icon">${icon}</span>
+      <span class="toast-msg">${esc(msg)}</span>
+      <button class="toast-close" type="button" aria-label="关闭">×</button>
+    </div>
+  `);
+  c.appendChild(t);
+  const remove = () => {
+    t.classList.add('leaving');
+    setTimeout(() => t.remove(), 200);
+  };
+  t.querySelector('.toast-close').addEventListener('click', remove);
+  if (timeout) setTimeout(remove, timeout);
+}
+
+// ============================================================
+// 全局键盘（ESC 返回 / Enter 触发主按钮 / 日志一键复制）
+// ============================================================
+
+document.addEventListener('keydown', (e) => {
+  // 弹窗自己处理 ESC（capture 阶段已截走），这里只做 live → 入口的返回
+  if (e.key === 'Escape' && !document.querySelector('.modal-backdrop')) {
+    if (parseHash().startsWith('/live')) {
+      location.hash = '#/';
+    } else if (parseHash() === '/history' || parseHash() === '/flowchart') {
+      location.hash = '#/';
+    }
+    return;
+  }
+  // 表单内 Enter → 触发同卡片里的主按钮（仅文本/数字/select 聚焦；checkbox/textarea 跳过避免误触）
+  if (e.key === 'Enter') {
+    const tag = e.target.tagName;
+    if (tag !== 'INPUT' && tag !== 'SELECT') return;
+    const t = (e.target.type || '').toLowerCase();
+    if (t === 'checkbox' || t === 'radio' || t === 'textarea') return;
+    if (document.querySelector('.modal-backdrop')) return;
+    const card = e.target.closest('.card');
+    if (!card) return;
+    const btn = card.querySelector('button.btn-large:not(:disabled), button.btn:not(:disabled)');
+    if (btn) {
+      e.preventDefault();
+      btn.click();
+    }
+  }
+});
+
+// 委托：点 log-wrap 里的复制按钮 → 复制兄弟 log-box 的文本
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('.log-copy-btn');
+  if (!btn) return;
+  const wrap = btn.closest('.log-wrap');
+  if (!wrap) return;
+  const box = wrap.querySelector('.log-box');
+  if (!box) return;
+  const text = box.textContent || '';
+  const done = () => {
+    btn.classList.add('copied');
+    btn.textContent = '已复制 ✓';
+    setTimeout(() => { btn.classList.remove('copied'); btn.textContent = '复制'; }, 1500);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(() => {
+      // fallback: 旧浏览器或非 https
+      fallbackCopy(text); done();
+    });
+  } else {
+    fallbackCopy(text); done();
+  }
+});
+
+function fallbackCopy(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); } catch {}
+  ta.remove();
 }
