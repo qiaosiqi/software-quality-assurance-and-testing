@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+<suite name="AutomationExercise-Performance-Suite" verbose="1" parallel="false">
+    <parameter name="baseUrl" value="https://automationexercise.com"/>
+    <parameter name="performance.threads" value="120"/>
+    <parameter name="performance.requestsPerThread" value="2"/>
+
+    <test name="performance-test">
+        <classes>
+            <class name="com.example.ae.tests.PerformanceHttpTest"/>
+        </classes>
+    </test>
+</suite>

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+<suite name="AutomationExercise-Functional-Suite" verbose="1" parallel="false">
+    <parameter name="baseUrl" value="https://automationexercise.com"/>
+    <parameter name="browser" value="chrome"/>
+    <parameter name="headless" value="false"/>
+    <parameter name="timeoutSeconds" value="45"/>
+    <parameter name="username" value="Selenium Student"/>
+    <parameter name="password" value="Test@123456"/>
+    <parameter name="emailDomain" value="example.com"/>
+
+    <test name="single-module-tests">
+        <classes>
+            <class name="com.example.ae.tests.SingleModuleTest"/>
+        </classes>
+    </test>
+
+    <test name="integration-module-tests">
+        <classes>
+            <class name="com.example.ae.tests.IntegrationModuleTest"/>
+        </classes>
+    </test>
+
+    <test name="data-combination-tests">
+        <classes>
+            <class name="com.example.ae.tests.LoginDataCombinationTest"/>
+        </classes>
+    </test>
+</suite>
