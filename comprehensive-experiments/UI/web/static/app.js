@@ -17,6 +17,7 @@ const $app = document.getElementById('app');
 let META = null;          // /api/meta 缓存
 let INT_CATALOG = null;   // /api/integration/catalog 缓存
 let MONITOR_TIMER = null; // 首页系统状态卡的轮询 timer；路由切走时必须清掉
+let DEMO_TIMER = null;    // 快速 demo 进度轮询 timer；路由切走时必须清掉
 
 const OWNER_ORDER = ['siqi', 'zhiyi', 'yusheng', 'xupeng'];
 const MONITOR_INTERVAL_MS = 15_000;
@@ -71,13 +72,15 @@ function parseHash() {
 }
 
 async function route() {
-  // 离开当前页时清掉首页监控 timer，避免后台空转拉 /api/monitor
+  // 离开当前页时清掉轮询 timer，避免后台空转拉接口
   if (MONITOR_TIMER) { clearInterval(MONITOR_TIMER); MONITOR_TIMER = null; }
+  if (DEMO_TIMER) { clearInterval(DEMO_TIMER); DEMO_TIMER = null; }
   const path = parseHash();
   try {
     if (path === '/' || path === '') return renderEntry();
     if (path === '/history') return renderHistory();
     if (path === '/flowchart') return renderFlowchart();
+    if (path === '/demo') return renderDemo();
     if (path === '/live' || path === '/live/') {
       location.hash = '#/live/unit';
       return;
@@ -179,6 +182,12 @@ async function renderEntry() {
           <p>站点全局业务流程</p>
           <div class="entry-card-meta">SVG 总览</div>
         </div>
+        <div class="entry-card" data-go="#/demo">
+          <img src="/static/icon_demo.svg" alt="demo">
+          <h3>快速测试 demo</h3>
+          <p>4 人并行 · headless 后台一键演示</p>
+          <div class="entry-card-meta">每人 1 单元+1 集成+5 数据</div>
+        </div>
       </div>
 
       <div class="entry-footer">
@@ -188,8 +197,8 @@ async function renderEntry() {
   `;
   $$('.entry-card').forEach(c => c.addEventListener('click', async () => {
     const go = c.dataset.go;
-    // 实时测试入口要先看免责声明（其它两张卡片直接跳转）
-    if (go.startsWith('#/live') && needsDisclaimer()) {
+    // 实时测试 / 快速 demo 都会访问被测站点，进入前先看免责声明（历史/流程图直接跳转）
+    if ((go.startsWith('#/live') || go.startsWith('#/demo')) && needsDisclaimer()) {
       await showDisclaimerModal();
     }
     location.hash = go;
@@ -852,7 +861,7 @@ function renderFlowchart() {
     <div class="page">
       <div class="card" style="text-align: center;">
         <p style="color: var(--color-muted); margin-top: 0;">
-          替换 <code>UI/web/static/flowchart.png</code> 即可生效（fallback 到 flowchart.svg 占位）
+          UI/web/static/flowchart.png
         </p>
         <img src="/static/flowchart.png"
              onerror="this.onerror=null; this.src='/static/flowchart.svg';"
@@ -860,6 +869,141 @@ function renderFlowchart() {
       </div>
     </div>
   `;
+}
+
+// ============================================================
+// 快速测试 demo：4 人并行进度框
+// ============================================================
+
+const DEMO_STATE_CN = {
+  passed: '全部通过', failed: '有失败用例', error: '运行出错',
+  skipped: '已跳过', running: '运行中', pending: '等待',
+};
+const DEMO_PILL = {
+  passed: 'ok', failed: 'fail', error: 'fail', skipped: 'tbd', running: 'run', pending: 'tbd',
+};
+
+function fmtMMSS(sec) {
+  const s = Math.max(0, Math.floor(sec || 0));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+async function renderDemo() {
+  $app.innerHTML = `
+    ${topbar('快速测试 demo')}
+    <div class="page">
+      <div class="card demo-intro">
+        <div>
+          <h3 style="margin:0 0 4px;">4 人并行 · headless 后台一键演示</h3>
+          <div style="color:var(--color-muted); font-size:13px;">
+            每人 1 单元 + 1 集成 + 5 条数据组合（不含性能）。测试在后台无头运行，不会弹出浏览器窗口。
+            产物与分析报告落到 <code>outputs/quick-demo/</code>。
+          </div>
+        </div>
+        <div class="demo-actions">
+          <span id="demo-overall" class="demo-overall"></span>
+          <a id="demo-report-link" class="btn btn-secondary" style="display:none;" target="_blank">📄 查看分析报告</a>
+          <button class="btn btn-large" id="btn-demo-start">▶ 开始 demo</button>
+        </div>
+      </div>
+      <div class="demo-grid" id="demo-grid"><div class="loading">加载中…</div></div>
+    </div>
+  `;
+  $('#btn-demo-start').addEventListener('click', startDemo);
+  await refreshDemo();   // 首屏拉一次；若已有批次在跑会自动开始轮询
+}
+
+async function startDemo() {
+  const btn = $('#btn-demo-start');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> 启动中…';
+  try {
+    await apiPost('/api/demo/start');
+    toast('demo 已启动，4 人并行后台运行中', 'ok');
+  } catch (e) {
+    toast('启动失败：' + e.message, 'fail', 5000);
+    btn.disabled = false;
+    btn.innerHTML = '▶ 开始 demo';
+    return;
+  }
+  ensureDemoPolling();
+  await refreshDemo();
+}
+
+function ensureDemoPolling() {
+  if (!DEMO_TIMER) DEMO_TIMER = setInterval(refreshDemo, 1200);
+}
+
+async function refreshDemo() {
+  // 路由切走（DOM 没了）就停掉轮询
+  if (!document.getElementById('demo-grid')) {
+    if (DEMO_TIMER) { clearInterval(DEMO_TIMER); DEMO_TIMER = null; }
+    return;
+  }
+  let data;
+  try { data = await apiGet('/api/demo/status'); }
+  catch { return; }
+
+  renderDemoBoxes(data);
+
+  const btn = $('#btn-demo-start');
+  const overall = $('#demo-overall');
+  const link = $('#demo-report-link');
+
+  if (data.status === 'running') {
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> 运行中…'; }
+    if (overall) overall.textContent = `已用 ${fmtMMSS(data.elapsed_sec)}`;
+    if (link) link.style.display = 'none';
+    ensureDemoPolling();
+  } else {
+    if (DEMO_TIMER) { clearInterval(DEMO_TIMER); DEMO_TIMER = null; }
+    if (btn) { btn.disabled = false; btn.innerHTML = '▶ 开始 demo'; }
+    if (data.status === 'done') {
+      if (overall) overall.textContent = `本批用时 ${fmtMMSS(data.elapsed_sec)}`;
+      if (link && data.report_url) { link.href = data.report_url; link.style.display = ''; }
+    } else if (overall) {
+      overall.textContent = '';
+    }
+  }
+}
+
+function renderDemoBoxes(data) {
+  const grid = $('#demo-grid');
+  if (!grid) return;
+  const owners = data.owners || [];
+  if (!owners.length) {
+    grid.innerHTML = `<div class="card" style="text-align:center; color:var(--color-muted); padding:40px;">点击右上角「开始 demo」启动 4 人并行测试</div>`;
+    return;
+  }
+  grid.innerHTML = owners.map(o => {
+    const pct = o.step_total ? Math.round((o.step_done / o.step_total) * 100) : 0;
+    const stateCN = DEMO_STATE_CN[o.state] || o.state;
+    const pill = DEMO_PILL[o.state] || 'tbd';
+    const spin = o.state === 'running' ? '<span class="spinner"></span> ' : '';
+    const steps = (o.steps || []).map(s =>
+      `<li>${s.success ? '✅' : '❌'} ${esc(s.name)} <span class="demo-muted">${s.passed}/${s.passed + s.failed} · ${s.duration}s</span></li>`
+    ).join('');
+    const logs = (o.log_tail || []).slice(-6).map(l => esc(l)).join('<br>');
+    const report = o.report_url
+      ? `<a class="demo-box-report" href="${esc(o.report_url)}" target="_blank">查看报告 →</a>` : '';
+    return `
+      <div class="demo-box demo-box-${o.state}">
+        <div class="demo-box-head">
+          <span class="demo-box-name">${esc(o.display)}</span>
+          <span class="status-pill ${pill}">${spin}${esc(stateCN)}</span>
+        </div>
+        <div class="demo-progress"><div class="demo-progress-bar" style="width:${pct}%"></div></div>
+        <div class="demo-box-meta">
+          <span>${o.step_done}/${o.step_total} 步</span>
+          <span>通过 ${o.passed} · 失败 ${o.failed}</span>
+          <span>${fmtMMSS(o.elapsed_sec)}</span>
+        </div>
+        <div class="demo-box-current">${esc(o.current_label)}</div>
+        ${steps ? `<ul class="demo-steps">${steps}</ul>` : ''}
+        ${logs ? `<div class="demo-log">${logs}</div>` : ''}
+        ${report}
+      </div>`;
+  }).join('');
 }
 
 // ============================================================
@@ -1079,7 +1223,7 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && !document.querySelector('.modal-backdrop')) {
     if (parseHash().startsWith('/live')) {
       location.hash = '#/';
-    } else if (parseHash() === '/history' || parseHash() === '/flowchart') {
+    } else if (parseHash() === '/history' || parseHash() === '/flowchart' || parseHash() === '/demo') {
       location.hash = '#/';
     }
     return;

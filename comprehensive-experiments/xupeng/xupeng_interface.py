@@ -143,9 +143,12 @@ class TestResult:
 # 内部辅助
 # ============================================================
 
-def _run_subprocess(cmd: list[str]) -> tuple[subprocess.CompletedProcess, float]:
+def _run_subprocess(cmd: list[str], env_extra: Optional[dict] = None) -> tuple[subprocess.CompletedProcess, float]:
+    """env_extra：仅注入到该子进程的额外环境变量（如 SQA_HEADLESS=1），不污染当前进程。"""
     env = os.environ.copy()
     env["PYTHONIOENCODING"] = "utf-8"
+    if env_extra:
+        env.update({k: str(v) for k, v in env_extra.items()})
     start = time.time()
     proc = subprocess.run(
         cmd,
@@ -159,12 +162,17 @@ def _run_subprocess(cmd: list[str]) -> tuple[subprocess.CompletedProcess, float]
     return proc, time.time() - start
 
 
-def _run_pytest(args: list[str], html_report: Optional[Path] = None) -> tuple[subprocess.CompletedProcess, float]:
+def _run_pytest(args: list[str], html_report: Optional[Path] = None,
+                env_extra: Optional[dict] = None) -> tuple[subprocess.CompletedProcess, float]:
     cmd = [PYTHON, "-m", "pytest", *args]
     if html_report is not None:
         html_report.parent.mkdir(parents=True, exist_ok=True)
         cmd += [f"--html={html_report}", "--self-contained-html"]
-    return _run_subprocess(cmd)
+    return _run_subprocess(cmd, env_extra=env_extra)
+
+
+def _headless_env(headless: bool) -> Optional[dict]:
+    return {"SQA_HEADLESS": "1"} if headless else None
 
 
 def _parse_pytest_summary(output: str) -> tuple[int, int, int]:
@@ -218,7 +226,7 @@ def _parse_locust_aggregated(output: str) -> dict:
 # 单元测试
 # ============================================================
 
-def run_unit(module: str = "all", **_ignored) -> TestResult:
+def run_unit(module: str = "all", *, headless: bool = False, **_ignored) -> TestResult:
     """运行单元测试。
 
     Parameters
@@ -241,7 +249,7 @@ def run_unit(module: str = "all", **_ignored) -> TestResult:
         raise ValueError(f"未知 module='{module}'，可选: contact / category / subscribe / all")
 
     report = ROOT / "reports" / "html" / f"unit_{tag}.html"
-    proc, dur = _run_pytest(args, html_report=report)
+    proc, dur = _run_pytest(args, html_report=report, env_extra=_headless_env(headless))
     p, f, s = _parse_pytest_summary(proc.stdout + proc.stderr)
     return TestResult(
         name=f"单元测试[{tag}]",
@@ -258,7 +266,8 @@ def run_unit(module: str = "all", **_ignored) -> TestResult:
 # 集成测试
 # ============================================================
 
-def run_integration(depth: Union[int, str] = 5, *, path: int = 1, **_ignored) -> TestResult:
+def run_integration(depth: Union[int, str] = 5, *, path: int = 1,
+                    headless: bool = False, **_ignored) -> TestResult:
     """运行集成测试。
 
     Parameters
@@ -281,7 +290,7 @@ def run_integration(depth: Union[int, str] = 5, *, path: int = 1, **_ignored) ->
         tag = f"d{depth}p{path}"
 
     report = ROOT / "reports" / "html" / f"integration_{tag}.html"
-    proc, dur = _run_pytest(args, html_report=report)
+    proc, dur = _run_pytest(args, html_report=report, env_extra=_headless_env(headless))
     p, f, s = _parse_pytest_summary(proc.stdout + proc.stderr)
     return TestResult(
         name=f"集成测试[{tag}]",
@@ -298,17 +307,22 @@ def run_integration(depth: Union[int, str] = 5, *, path: int = 1, **_ignored) ->
 # 数据组合
 # ============================================================
 
-def run_data_combination(*, regenerate: bool = False, **_ignored) -> TestResult:
-    """运行数据组合测试（25 组搜索关键词）。
+def run_data_combination(*, regenerate: bool = False,
+                         select_ids: Optional[list[str]] = None,
+                         headless: bool = False, **_ignored) -> TestResult:
+    """运行数据组合测试（默认 25 组搜索关键词）。
 
     regenerate 参数为了对齐 siqi 接口保留，xupeng 没有动态生成步骤，传入会被忽略。
+    select_ids 给定时只跑这些 id 子集（如 ["TS001","TS002"]）；headless 供 demo 用。
     """
     report = ROOT / "reports" / "html" / "data_combination.html"
     args = ["data_test.py::TestSearchProductsDataCombination"]
-    proc, dur = _run_pytest(args, html_report=report)
+    if select_ids:
+        args += ["-k", " or ".join(select_ids)]
+    proc, dur = _run_pytest(args, html_report=report, env_extra=_headless_env(headless))
     p, f, s = _parse_pytest_summary(proc.stdout + proc.stderr)
     return TestResult(
-        name="数据组合测试[25 组]",
+        name="数据组合测试[25 组]" if not select_ids else f"数据组合测试[{len(select_ids)} 组]",
         success=(proc.returncode == 0),
         passed=p, failed=f, skipped=s,
         duration_sec=round(dur, 2),

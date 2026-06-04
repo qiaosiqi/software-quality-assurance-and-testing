@@ -262,7 +262,12 @@ def _parse_data_combo_per_case() -> dict:
 # 单元测试
 # ============================================================
 
-def run_unit(module: str = "all", **_ignored) -> TestResult:
+def _headless_args(headless: bool) -> list[str]:
+    """headless=True 时返回 ['-Dheadless=true']，否则空（保持 testng.xml 默认 false）。"""
+    return ["-Dheadless=true"] if headless else []
+
+
+def run_unit(module: str = "all", *, headless: bool = False, **_ignored) -> TestResult:
     """运行单元测试。
 
     module: register / login / logout / all
@@ -276,7 +281,7 @@ def run_unit(module: str = "all", **_ignored) -> TestResult:
     else:
         raise ValueError(f"未知 module='{module}'，可选: register / login / logout / all")
 
-    args = ["test", f"-Dtest={d_test}"]
+    args = ["test", f"-Dtest={d_test}", *_headless_args(headless)]
     proc, dur = _run_mvn(args)
     p, f, s = _parse_summary(proc.stdout + proc.stderr)
     surefire = JAVA_ROOT / "target" / "surefire-reports"
@@ -295,7 +300,8 @@ def run_unit(module: str = "all", **_ignored) -> TestResult:
 # 集成测试
 # ============================================================
 
-def run_integration(depth: Union[int, str] = 4, *, path: int = 1, **_ignored) -> TestResult:
+def run_integration(depth: Union[int, str] = 4, *, path: int = 1,
+                    headless: bool = False, **_ignored) -> TestResult:
     """运行集成测试。
 
     depth: 4 | 5（zhiyi 只有这两条）
@@ -314,7 +320,7 @@ def run_integration(depth: Union[int, str] = 4, *, path: int = 1, **_ignored) ->
         d_test = TEST_CATALOG["integration"][key]["node"]
         tag = f"d{depth}p{path}"
 
-    args = ["test", f"-Dtest={d_test}"]
+    args = ["test", f"-Dtest={d_test}", *_headless_args(headless)]
     proc, dur = _run_mvn(args)
     p, f, s = _parse_summary(proc.stdout + proc.stderr)
     surefire = JAVA_ROOT / "target" / "surefire-reports"
@@ -333,8 +339,12 @@ def run_integration(depth: Union[int, str] = 4, *, path: int = 1, **_ignored) ->
 # 数据组合
 # ============================================================
 
-def run_data_combination(*, regenerate: bool = False, **_ignored) -> TestResult:
-    args = ["test", f"-Dtest={_DATA_COMBO}"]
+def run_data_combination(*, regenerate: bool = False, headless: bool = False,
+                         limit: Optional[int] = None, **_ignored) -> TestResult:
+    """limit 给定时只跑前 limit 组（DataProvider 读 -Ddata.limit 截断）；headless 供 demo 用。"""
+    args = ["test", f"-Dtest={_DATA_COMBO}", *_headless_args(headless)]
+    if limit:
+        args.append(f"-Ddata.limit={int(limit)}")
     proc, dur = _run_mvn(args)
     p, f, s = _parse_summary(proc.stdout + proc.stderr)
     per_case = _parse_data_combo_per_case()

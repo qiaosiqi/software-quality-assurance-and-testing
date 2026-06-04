@@ -23,14 +23,17 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from server import demo as demo_module
 from server import history
 from server.adapters import (
     ADAPTERS, MODULE_META, MODULE_OWNER, OWNER_DISPLAY, get_adapter,
 )
 from server.adapters import integration_catalog as ic
+from server.runlock import RUN_LOCK
 
-# 全局运行锁：同一时刻只允许一个测试在跑（避免 Playwright / Locust 资源冲突）
-_RUN_LOCK = threading.Lock()
+# 全局运行锁：同一时刻只允许一个测试在跑（避免 Playwright / Locust 资源冲突）。
+# 锁实例统一放在 server.runlock，main 与 demo 共享同一把，互相互斥。
+_RUN_LOCK = RUN_LOCK
 
 # 路径常量
 UI_ROOT = Path(__file__).resolve().parent.parent          # comprehensive-experiments/UI
@@ -380,6 +383,28 @@ def api_run_performance(body: RunPerfBody) -> dict:
     return {"ok": True, "entry": _enrich(record)}
 
 
+# ============================================================
+# 快速测试 demo（4 人并行、headless 后台跑、独立产物 + 分析报告）
+# ============================================================
+
+@app.post("/api/demo/start")
+def api_demo_start() -> dict:
+    """启动一批快速 demo。整批一次性持有全局锁，跑完才释放。
+
+    返回 409 的两种情况：实时测试正占着锁，或已有一批 demo 在跑。
+    """
+    result = demo_module.start()
+    if not result.get("ok"):
+        raise HTTPException(status_code=409, detail=result.get("reason", "无法启动 demo"))
+    return result
+
+
+@app.get("/api/demo/status")
+def api_demo_status() -> dict:
+    """前端轮询：返回当前批次的整体状态 + 4 个成员各自的进度。"""
+    return demo_module.status()
+
+
 @app.get("/")
 def root() -> FileResponse:
     index = WEB_DIR / "index.html"
@@ -402,3 +427,12 @@ for _owner, _dir in REPORT_DIRS.items():
         StaticFiles(directory=_dir, html=True),
         name=f"reports-{_owner}",
     )
+
+# 快速 demo 产物目录（每批一个时间戳子目录，含日志 + 合并报告）。
+# 提前 mkdir 避免 StaticFiles 挂载失败。
+demo_module.OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
+app.mount(
+    "/outputs/quick-demo",
+    StaticFiles(directory=demo_module.OUTPUT_ROOT, html=True),
+    name="outputs-quick-demo",
+)

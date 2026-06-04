@@ -113,10 +113,16 @@ class TestResult:
 # 内部辅助
 # ============================================================
 
-def _run_subprocess(cmd: list[str]) -> tuple[subprocess.CompletedProcess, float]:
-    """跑子进程，统一 UTF-8 编码 + 工作目录。"""
+def _run_subprocess(cmd: list[str], env_extra: Optional[dict] = None) -> tuple[subprocess.CompletedProcess, float]:
+    """跑子进程，统一 UTF-8 编码 + 工作目录。
+
+    env_extra：仅注入到这个子进程的额外环境变量（如 SQA_HEADLESS=1），
+    不污染当前进程环境。
+    """
     env = os.environ.copy()
     env["PYTHONIOENCODING"] = "utf-8"
+    if env_extra:
+        env.update({k: str(v) for k, v in env_extra.items()})
     start = time.time()
     proc = subprocess.run(
         cmd,
@@ -130,13 +136,19 @@ def _run_subprocess(cmd: list[str]) -> tuple[subprocess.CompletedProcess, float]
     return proc, time.time() - start
 
 
-def _run_pytest(args: list[str], html_report: Optional[Path] = None) -> tuple[subprocess.CompletedProcess, float]:
+def _run_pytest(args: list[str], html_report: Optional[Path] = None,
+                env_extra: Optional[dict] = None) -> tuple[subprocess.CompletedProcess, float]:
     """组装 pytest 命令并执行。html_report 给定时覆盖 pytest.ini 里的默认报告路径。"""
     cmd = [PYTHON, "-m", "pytest", *args]
     if html_report is not None:
         html_report.parent.mkdir(parents=True, exist_ok=True)
         cmd += [f"--html={html_report}", "--self-contained-html"]
-    return _run_subprocess(cmd)
+    return _run_subprocess(cmd, env_extra=env_extra)
+
+
+def _headless_env(headless: bool) -> Optional[dict]:
+    """headless=True 时返回给子进程注入的环境变量；否则 None（保持原行为）。"""
+    return {"SQA_HEADLESS": "1"} if headless else None
 
 
 def _parse_pytest_summary(output: str) -> tuple[int, int, int]:
@@ -208,6 +220,8 @@ def run_unit(
     *,
     keyword: Optional[str] = None,
     product_index: Optional[int] = None,
+    headless: bool = False,
+    **_ignored,
 ) -> TestResult:
     """运行单元测试。
 
@@ -232,7 +246,7 @@ def run_unit(
         args.append(f"--product-index={product_index}")
 
     report = ROOT / "reports" / "html" / f"unit_{tag}.html"
-    proc, dur = _run_pytest(args, html_report=report)
+    proc, dur = _run_pytest(args, html_report=report, env_extra=_headless_env(headless))
     p, f, s = _parse_pytest_summary(proc.stdout + proc.stderr)
     return TestResult(
         name=f"单元测试[{tag}]",
@@ -254,6 +268,8 @@ def run_integration(
     *,
     keyword: Optional[str] = None,
     product_index: Optional[int] = None,
+    headless: bool = False,
+    **_ignored,
 ) -> TestResult:
     """运行集成测试。
 
@@ -276,7 +292,7 @@ def run_integration(
         args.append(f"--product-index={product_index}")
 
     report = ROOT / "reports" / "html" / f"integration_{tag}.html"
-    proc, dur = _run_pytest(args, html_report=report)
+    proc, dur = _run_pytest(args, html_report=report, env_extra=_headless_env(headless))
     p, f, s = _parse_pytest_summary(proc.stdout + proc.stderr)
     return TestResult(
         name=f"集成测试[{tag}]",
@@ -306,22 +322,29 @@ def generate_combinations() -> Path:
     return csv_path
 
 
-def run_data_combination(*, regenerate: bool = False) -> TestResult:
-    """运行数据组合测试（25 组）。
+def run_data_combination(*, regenerate: bool = False,
+                         select_ids: Optional[list[str]] = None,
+                         headless: bool = False, **_ignored) -> TestResult:
+    """运行数据组合测试（默认 25 组）。
 
     Parameters
     ----------
     regenerate: True 时先重新生成 CSV，再跑测试；CSV 不存在时也会自动生成。
+    select_ids: 仅跑指定 id 的子集（如 ["DC-01", "DC-02"]）；None 跑全部。
+    headless: True 时子进程以 headless 模式跑（demo 用）。
     """
     csv_path = ROOT / "testdata" / "combinations.csv"
     if regenerate or not csv_path.exists():
         generate_combinations()
 
+    args = ["-m", "data_combo"]
+    if select_ids:
+        args += ["-k", " or ".join(select_ids)]
     report = ROOT / "reports" / "html" / "data_combination.html"
-    proc, dur = _run_pytest(["-m", "data_combo"], html_report=report)
+    proc, dur = _run_pytest(args, html_report=report, env_extra=_headless_env(headless))
     p, f, s = _parse_pytest_summary(proc.stdout + proc.stderr)
     return TestResult(
-        name="数据组合测试[25 组]",
+        name="数据组合测试[25 组]" if not select_ids else f"数据组合测试[{len(select_ids)} 组]",
         success=(proc.returncode == 0),
         passed=p, failed=f, skipped=s,
         duration_sec=round(dur, 2),

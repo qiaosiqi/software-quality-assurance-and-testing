@@ -60,6 +60,19 @@ public class LoginDataCombinationTest extends FlowHelper {
             }
         }
 
+        // 快速 demo 用 -Ddata.limit=N 只跑前 N 组；不设则返回全部 25 组（原行为）。
+        String limitProp = System.getProperty("data.limit");
+        if (limitProp != null && !limitProp.trim().isEmpty()) {
+            try {
+                int limit = Integer.parseInt(limitProp.trim());
+                if (limit > 0 && limit < rows.size()) {
+                    rows = new ArrayList<>(rows.subList(0, limit));
+                }
+            } catch (NumberFormatException ignored) {
+                // 非法值忽略，跑全部
+            }
+        }
+
         return rows.toArray(new Object[0][]);
     }
 

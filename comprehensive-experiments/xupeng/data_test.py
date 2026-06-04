@@ -19,6 +19,15 @@ class TestSearchProductsDataCombination:
         edge_options.add_argument("--disable-notifications")
         edge_options.add_argument("--disable-popup-blocking")
         edge_options.add_experimental_option("excludeSwitches", ["enable-logging"])
+        # 仅当 SQA_HEADLESS=1（快速 demo 注入）时后台跑；默认可见，与原行为一致。
+        _demo_headless = os.environ.get("SQA_HEADLESS") == "1"
+        if _demo_headless:
+            edge_options.add_argument("--headless=new")
+            edge_options.add_argument("--window-size=1440,1000")
+            edge_options.add_argument("--disable-gpu")
+            # eager：DOM 可交互即返回，不死等广告/统计脚本等子资源——
+            # 否则 headless 下 driver.get 在本站会长时间挂起（每次导航 30-60s+）。
+            edge_options.page_load_strategy = "eager"
 
         edge_driver_path = os.environ.get("EDGE_DRIVER_PATH")
         if edge_driver_path and os.path.exists(edge_driver_path):
@@ -27,7 +36,10 @@ class TestSearchProductsDataCombination:
         else:
             self.driver = webdriver.Edge(options=edge_options)
 
-        self.driver.maximize_window()
+        if _demo_headless:
+            self.driver.set_page_load_timeout(40)   # 兜底：即便 eager 也不让单次导航无限挂起
+        else:
+            self.driver.maximize_window()
         self.driver.get("http://automationexercise.com/products")
         self.wait = WebDriverWait(self.driver, 8)
         time.sleep(0.8)

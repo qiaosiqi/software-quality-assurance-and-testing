@@ -45,8 +45,17 @@ DATA_CASES: list[tuple[str, str, str]] = [
 
 @pytest.fixture(scope="module")
 def driver():
-    drv = webdriver.Chrome()
-    drv.maximize_window()
+    # 默认可见浏览器；仅当 SQA_HEADLESS=1（快速 demo 注入）时后台跑。
+    import os
+    from selenium.webdriver.chrome.options import Options as _ChromeOptions
+    _opts = _ChromeOptions()
+    if os.environ.get("SQA_HEADLESS") == "1":
+        _opts.add_argument("--headless=new")
+        _opts.add_argument("--window-size=1440,1000")
+        _opts.add_argument("--disable-gpu")
+    drv = webdriver.Chrome(options=_opts)
+    if os.environ.get("SQA_HEADLESS") != "1":
+        drv.maximize_window()
     yield drv
     drv.quit()
 
