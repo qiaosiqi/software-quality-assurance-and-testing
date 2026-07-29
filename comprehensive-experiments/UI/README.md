@@ -1,6 +1,6 @@
-# 综合实验 GUI
+# QualityHub 综合测试平台
 
-软件质量保证与测试综合实验的统一前端展示 + 后端适配模块。Phase 1 原型，覆盖 siqi 的全部测试（单元 / 集成 / 数据组合 / 性能），其他三位成员的部分以"待接入"占位等接口。
+软件质量保证与测试综合实验的统一编排与展示平台。系统已接入四位成员的测试实现，通过统一 adapter 协议封装 pytest、Playwright、Selenium、Locust、TestNG 与 Maven 等异构测试栈，并提供实时测试、历史记录、业务流程、运行监控和快速演示等完整功能。
 
 设计细节见同目录 `ui_design.md`。
 
@@ -42,21 +42,22 @@ start.bat
 | `#/live/integration` | 集成测试：5 个深度下拉，命中白名单才跑 |
 | `#/live/data` | 数据组合：成员 tab + 25 行表 |
 | `#/live/performance` | 性能测试：成员 tab + 动态参数表单 |
-| `#/flowchart` | 业务流程图：占位图，可替换 |
+| `#/flowchart` | 业务流程图：SVG 全局业务流程 |
+| `#/demo` | 快速演示：四位成员并行执行并生成汇总报告 |
 
 ---
 
-## 装饰素材替换
+## 视觉素材
 
 前端引用以下静态资源（用户可直接替换同名文件，无需改代码）：
 
-| 用途 | 文件路径 | 当前占位形式 |
+| 用途 | 文件路径 | 当前形式 |
 |---|---|---|
 | 团队 logo（入口页 banner 右上角） | `web/static/team_logo.svg` | 蓝紫圆形 + "SQAT 综合实验" |
 | 历史记录卡片图标 | `web/static/icon_history.svg` | 钟表 + 倒流箭头 |
 | 实时测试卡片图标 | `web/static/icon_live.svg` | 播放三角 + 红点 |
 | 业务流程图卡片图标 | `web/static/icon_flowchart.svg` | 树状框图 |
-| 业务流程图主图 | `web/static/flowchart.png` | 不存在时 fallback 到 `flowchart.svg`（待补充字样） |
+| 业务流程图主图 | `web/static/flowchart.svg` | 完整业务流程总览 |
 
 > 推荐尺寸：
 > - 卡片图标 64×64（SVG/PNG 均可）
@@ -65,9 +66,9 @@ start.bat
 
 ---
 
-## 添加新成员的接口
+## 统一 adapter 接口
 
-zhiyi / xupeng / yusheng 三人当前是占位 adapter（`server/adapters/placeholder.py` 生成）。要接入：
+四位成员均已通过独立 adapter 接入。每个 adapter 将成员原有测试框架的调用方式转换为统一接口：
 
 1. 在 `comprehensive-experiments/<member>/` 下提供 `<member>_interface.py`，对外暴露下列函数：
 
@@ -84,9 +85,9 @@ list_data_cases() -> list[dict]  # 数据组合"待跑"表格行
 
 `TestResult` 数据结构见 `server/adapters/base.py`。
 
-2. 在 `server/adapters/<member>.py` 仿照 `siqi.py` 写 adapter，import 该成员的 interface 模块。
+2. 在 `server/adapters/<member>.py` 实现桥接层，调用该成员的 interface 模块。
 
-3. 在 `server/adapters/__init__.py` 把 placeholder 换成真实 adapter 实例。
+3. 在 `server/adapters/__init__.py` 注册真实 adapter 实例。
 
 4. 在 `server/adapters/integration_catalog.py` 录入该成员实现的集成路径（模块 id tuple → runner）。
 
@@ -190,7 +191,10 @@ UI/
 │   └── adapters/
 │       ├── base.py       ← Adapter Protocol + TestResult
 │       ├── siqi.py       ← 包装 siqi_interface
-│       ├── placeholder.py← 占位（zhiyi/xupeng/yusheng）
+│       ├── placeholder.py← 可选的未接入成员降级模板
+│       ├── zhiyi.py       ← Java/TestNG adapter
+│       ├── yusheng.py     ← 购物车测试 adapter
+│       ├── xupeng.py      ← 辅助功能测试 adapter
 │       ├── integration_catalog.py
 │       └── __init__.py   ← 12 模块清单 + 注册表
 └── web/
@@ -200,5 +204,5 @@ UI/
         ├── app.js        ← 路由 + 各页 view
         ├── team_logo.svg
         ├── icon_*.svg
-        └── flowchart.svg ← 业务流程图占位
+        └── flowchart.svg ← 完整业务流程总览
 ```

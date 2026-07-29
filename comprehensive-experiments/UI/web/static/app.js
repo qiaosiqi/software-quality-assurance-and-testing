@@ -116,8 +116,15 @@ async function renderEntry() {
   $app.innerHTML = `
     <div class="entry">
       <div class="entry-banner">
-        <h1>软件质量保证与测试 · 综合实验</h1>
-        <p class="subtitle">被测站点：automationexercise.com</p>
+        <div class="entry-eyebrow">SOFTWARE QUALITY ENGINEERING</div>
+        <h1>QualityHub</h1>
+        <p class="entry-tagline">多框架自动化测试编排与可视化平台</p>
+        <p class="subtitle">统一接入 Python / Java 测试栈 · 被测站点 automationexercise.com</p>
+        <div class="entry-metrics" aria-label="项目概览">
+          <span><strong>12</strong> 业务模块</span>
+          <span><strong>4</strong> 测试策略</span>
+          <span><strong>4</strong> 异构适配器</span>
+        </div>
         <img class="team-logo" src="/static/team_logo.svg" alt="team logo" width="90" height="90">
       </div>
 

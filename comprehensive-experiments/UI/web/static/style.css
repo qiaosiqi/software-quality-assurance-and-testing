@@ -73,9 +73,11 @@ a:hover { text-decoration: underline; }
   padding: 60px 40px 40px;
 }
 .entry-banner {
-  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
+  background:
+    radial-gradient(circle at 85% 18%, rgba(255,255,255,.18), transparent 24%),
+    linear-gradient(135deg, #20256b 0%, var(--color-primary) 48%, #555bc9 100%);
   color: white;
-  padding: 48px 40px;
+  padding: 44px 44px 40px;
   border-radius: var(--radius);
   margin-bottom: 40px;
   box-shadow: var(--shadow-lg);
@@ -93,14 +95,47 @@ a:hover { text-decoration: underline; }
   border-radius: 50%;
 }
 .entry-banner h1 {
-  margin: 0 0 12px;
-  font-size: 32px;
-  letter-spacing: 1px;
+  margin: 2px 0 0;
+  font-size: 46px;
+  line-height: 1.1;
+  letter-spacing: -1px;
+}
+.entry-eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2.4px;
+  color: rgba(255,255,255,.7);
+}
+.entry-tagline {
+  margin: 10px 0 4px;
+  font-size: 20px;
+  font-weight: 600;
 }
 .entry-banner .subtitle {
   margin: 0;
-  opacity: 0.9;
-  font-size: 16px;
+  opacity: 0.78;
+  font-size: 14px;
+}
+.entry-metrics {
+  display: flex;
+  gap: 10px;
+  margin-top: 22px;
+}
+.entry-metrics span {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 6px 11px;
+  border: 1px solid rgba(255,255,255,.22);
+  border-radius: 999px;
+  background: rgba(255,255,255,.09);
+  font-size: 12px;
+  color: rgba(255,255,255,.86);
+  backdrop-filter: blur(4px);
+}
+.entry-metrics strong {
+  font-size: 15px;
+  color: #fff;
 }
 .entry-banner .team-logo {
   position: absolute;
@@ -157,12 +192,24 @@ a:hover { text-decoration: underline; }
   box-shadow: var(--shadow-sm);
   border: 1px solid var(--color-border);
   text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+.entry-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: linear-gradient(90deg, var(--color-primary), var(--color-accent));
+  opacity: 0;
+  transition: opacity .2s;
 }
 .entry-card:hover {
   transform: translateY(-4px);
   box-shadow: var(--shadow-lg);
   border-color: var(--color-primary-light);
 }
+.entry-card:hover::before { opacity: 1; }
 .entry-card img {
   width: 64px;
   height: 64px;
@@ -184,6 +231,19 @@ a:hover { text-decoration: underline; }
   color: var(--color-muted);
   font-size: 13px;
   margin-top: 24px;
+}
+
+@media (max-width: 760px) {
+  .entry { padding: 24px 16px; }
+  .entry-banner { padding: 32px 24px; }
+  .entry-banner h1 { font-size: 38px; }
+  .entry-banner .team-logo { display: none; }
+  .entry-metrics { flex-wrap: wrap; }
+  .entry-team {
+    align-items: flex-start;
+    padding: 18px 20px;
+  }
+  .entry-team-members { flex-wrap: wrap; gap: 8px 14px; }
 }
 
 /* ============ 通用 page 容器 ============ */
